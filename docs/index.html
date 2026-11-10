@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F2F2F5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta name="description" content="Klick bei deinen Modul- oder Prüfungsergebnissen auf das Ø, und der Notenspiegel erscheint als Diagramm: wo deine Note liegt, wie die Klausur ausgefallen ist und wie viele bestanden haben. Das Skript läuft nur in deinem Browser.">
+<title>TUCaN-Notenspiegel – by Mario Jovanovic</title>
+<link rel="icon" href="assets/zeichen-klein.svg" type="image/svg+xml">
+<link rel="preload" href="assets/tuda/fonts/Archivo-Variable-Latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/tuda/tuda-tokens.css">
+<link rel="stylesheet" href="assets/tuda/bundle.css">
+<script src="assets/tuda/bundle.js" defer></script>
+<style>
+body{background:var(--surface-page);color:var(--text-primary);margin:0}
+.seite-top .tuda-topbar{padding-left:var(--space-6)}
+.seite-top .tuda-topbar__app{border-left:0;padding-left:0}
+.seite-lockup{display:inline-flex;align-items:center;gap:10px;color:var(--text-secondary)}
+.seite-lockup .tuda-sign{width:32px;height:32px}
+.seite-lockup b{display:block;font-family:var(--font-display);font-weight:var(--font-weight-heavy);font-size:15px;
+  line-height:19px;letter-spacing:-0.02em;color:var(--text-primary)}
+.seite-main{max-width:960px;margin-inline:auto;padding:var(--space-12) var(--grid-margin-lg) var(--space-16)}
+.seite-main > * + *{margin-top:var(--space-12)}
+.seite-text{color:var(--text-secondary);font-size:var(--font-size-base);line-height:24px}
+.seite-text + .seite-text{margin-top:var(--space-3)}
+.seite-code{margin:0;padding:var(--space-5);border-radius:var(--radius-lg);background:var(--surface);
+  font-family:var(--font-mono);font-size:var(--font-size-sm);line-height:20px;overflow-x:auto;white-space:pre}
+.seite-bild{margin:0}
+.seite-bild img{display:block;width:100%;border-radius:var(--radius-lg);background:var(--surface)}
+.seite-bild figcaption{margin-top:var(--space-2);color:var(--text-secondary);font-size:var(--font-size-sm)}
+.seite-fuss{max-width:960px;margin-inline:auto;padding:var(--space-8) var(--grid-margin-lg) var(--space-12);
+  display:flex;flex-wrap:wrap;gap:var(--space-4) var(--space-8);align-items:center;justify-content:space-between;
+  color:var(--text-secondary);font-size:var(--font-size-sm);line-height:18px}
+@media (max-width:640px){.seite-main,.seite-fuss{padding-inline:var(--grid-margin-sm)}
+  .seite-top .tuda-topbar{padding-left:var(--space-4)}
+  .seite-main{padding-top:var(--space-8)}}
+.seite-aktionen{display:flex;flex-wrap:wrap;gap:var(--space-3)}
+.seite-bild img{height:auto;max-width:560px;margin-inline:auto;background:transparent}
+.seite-bild figcaption{text-align:center}
+</style>
+</head>
+<body>
+<a class="tuda-skip-link" href="#main">Zum Inhalt springen</a>
+<div class="seite-top">
+<div class="tuda-brandbar" aria-hidden="true"></div>
+<header class="tuda-topbar">
+<a class="tuda-topbar__app tuda-topbar__app--signed" href="./"><svg class="tuda-sign" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><rect class="tuda-sign__tile" width="48" height="48" rx="10"/><path class="tuda-sign__mark" d="M7 38V26A3 3 0 0 1 13 26V38H12V26A2 2 0 0 0 8 26V38ZM9 38V26A1 1 0 0 1 11 26V38ZM14 38V19A3 3 0 0 1 20 19V38H19V19A2 2 0 0 0 15 19V38ZM16 38V19A1 1 0 0 1 18 19V38ZM21 38V12A3 3 0 0 1 27 12V38H26V12A2 2 0 0 0 22 12V38ZM23 38V12A1 1 0 0 1 25 12V38ZM28 38V19A3 3 0 0 1 34 19V38H33V19A2 2 0 0 0 29 19V38ZM30 38V19A1 1 0 0 1 32 19V38ZM35 38V26A3 3 0 0 1 41 26V38H40V26A2 2 0 0 0 36 26V38ZM37 38V26A1 1 0 0 1 39 26V38Z"/><path class="tuda-sign__small" d="M10.5 24H13.5V42H10.5ZM16.5 15H19.5V42H16.5ZM22.5 6H25.5V42H22.5ZM28.5 15H31.5V42H28.5ZM34.5 24H37.5V42H34.5Z"/></svg><span class="tuda-topbar__app-text"><span class="tuda-topbar__app-name">TUCaN-Notenspiegel</span><span class="tuda-topbar__app-meta">by Mario Jovanovic</span></span></a>
+<div class="tuda-topbar__actions"><a class="tuda-btn tuda-btn--ghost tuda-btn--neutral" href="https://github.com/MarioJovc/tucan-notenspiegel">GitHub</a></div>
+</header>
+</div>
+<main class="seite-main" id="main" tabindex="-1">
+<header class="tuda-page-header"><div class="tuda-page-header__text"><p class="tuda-kicker">Userscript für TUCaN · TU Darmstadt</p><h1 class="tuda-page-header__title">TUCaN-Notenspiegel</h1><p class="tuda-page-header__lead">Klick bei deinen Modul- oder Prüfungsergebnissen auf das Ø, und der Notenspiegel erscheint als Diagramm: wo deine Note liegt, wie die Klausur ausgefallen ist und wie viele bestanden haben. Das Skript läuft nur in deinem Browser.</p></div><div class="seite-aktionen"><a class="tuda-btn tuda-btn--ink tuda-btn--lg" href="tucan-notenspiegel.user.js"><svg data-icon="download"></svg>Installieren</a><a class="tuda-btn tuda-btn--secondary tuda-btn--lg" href="demo/">Demo ansehen</a></div></header>
+
+<section class="tuda-section seite-abschnitt" aria-labelledby="ab-1"><div class="tuda-section__head"><div class="tuda-section__heading"><span class="tuda-numeral tuda-section__index" aria-hidden="true">01</span><h2 class="tuda-section__title" id="ab-1">Was du siehst</h2></div></div><ul class="tuda-list tuda-list--card tuda-list--divided"><li class="tuda-list__item"><span class="tuda-list__lead tuda-list__lead--brand"><svg data-icon="star"></svg></span><span class="tuda-list__content"><span class="tuda-list__title">Deine Einordnung</span><span class="tuda-list__meta">Deine Note groß, dazu wie weit oben du liegst, etwa „Oberes 19 %“</span></span></li><li class="tuda-list__item"><span class="tuda-list__lead tuda-list__lead--brand"><svg data-icon="dashboard"></svg></span><span class="tuda-list__content"><span class="tuda-list__title">Verteilung</span><span class="tuda-list__meta">Balken oder Linie je Notenstufe, deine Stufe hervorgehoben, der Durchschnitt als Markierung</span></span></li><li class="tuda-list__item"><span class="tuda-list__lead tuda-list__lead--brand"><svg data-icon="check"></svg></span><span class="tuda-list__content"><span class="tuda-list__title">Bestanden und nicht bestanden</span><span class="tuda-list__meta">Anteile als Balken, dazu Fehlende mit und ohne Krankschreibung</span></span></li><li class="tuda-list__item"><span class="tuda-list__lead tuda-list__lead--brand"><svg data-icon="list"></svg></span><span class="tuda-list__content"><span class="tuda-list__title">Richtige Note je Ansicht</span><span class="tuda-list__meta">Modulergebnisse zeigen die Modulnote, Prüfungsergebnisse die Note der einzelnen Prüfung</span></span></li><li class="tuda-list__item"><span class="tuda-list__lead tuda-list__lead--brand"><svg data-icon="eye"></svg></span><span class="tuda-list__content"><span class="tuda-list__title">Note verbergen</span><span class="tuda-list__meta">Für Screenshots, die du teilen willst: Verteilung bleibt, deine Note verschwindet</span></span></li></ul></section><section class="tuda-section seite-abschnitt" aria-labelledby="ab-2"><div class="tuda-section__head"><div class="tuda-section__heading"><span class="tuda-numeral tuda-section__index" aria-hidden="true">02</span><h2 class="tuda-section__title" id="ab-2">So sieht es aus</h2></div></div><p class="tuda-measure seite-text">Die Demo zeigt den Notenspiegel einer erfundenen Klausur. Dort kannst du eine Note wählen, den Extremfall ansehen und den Dialog öffnen, wie er in TUCaN erscheint.</p><figure class="seite-bild"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/notenspiegel-dunkel.png"><img src="assets/notenspiegel-hell.png" alt="Notenspiegel einer erfundenen Klausur: Note 1,7 im oberen 19 Prozent, Balkendiagramm über elf Notenstufen mit Durchschnitt 2,88, darunter Anteile bestanden und nicht bestanden und eine Tabelle" width="1752" height="2096" loading="lazy"></picture><figcaption>Erfundene Klausur mit 335 Ergebnissen, eigene Note 1,7</figcaption></figure></section><section class="tuda-section seite-abschnitt" aria-labelledby="ab-3"><div class="tuda-section__head"><div class="tuda-section__heading"><span class="tuda-numeral tuda-section__index" aria-hidden="true">03</span><h2 class="tuda-section__title" id="ab-3">Installieren</h2></div></div><ul class="tuda-list tuda-list--card tuda-list--divided"><li class="tuda-list__item"><span class="tuda-list__lead tuda-list__lead--brand"><svg data-icon="download"></svg></span><span class="tuda-list__content"><span class="tuda-list__title">Tampermonkey installieren</span><span class="tuda-list__meta">Die Erweiterung gibt es für Chrome, Edge, Firefox und Safari</span></span></li><li class="tuda-list__item"><span class="tuda-list__lead tuda-list__lead--brand"><svg data-icon="settings"></svg></span><span class="tuda-list__content"><span class="tuda-list__title">In Chrome Benutzerskripts zulassen</span><span class="tuda-list__meta">Rechtsklick auf das Tampermonkey-Symbol, „Erweiterung verwalten“, dann den Schalter für Benutzerskripts („Allow User Scripts“) einschalten</span></span></li><li class="tuda-list__item"><span class="tuda-list__lead tuda-list__lead--brand"><svg data-icon="check"></svg></span><span class="tuda-list__content"><span class="tuda-list__title">Skript installieren</span><span class="tuda-list__meta">Oben auf „Installieren“ klicken und in Tampermonkey bestätigen; Updates kommen danach von selbst</span></span></li></ul></section><section class="tuda-section seite-abschnitt" aria-labelledby="ab-4"><div class="tuda-section__head"><div class="tuda-section__heading"><span class="tuda-numeral tuda-section__index" aria-hidden="true">04</span><h2 class="tuda-section__title" id="ab-4">Deine Daten</h2></div></div><p class="tuda-measure seite-text">Das Skript läuft nur auf tucan.tu-darmstadt.de. Es liest die Seite, die du ohnehin siehst, und ruft nur den Notenspiegel ab, den TUCaN sonst im Popup zeigt. Nichts geht an andere Server, und das prüfen die Tests bei jedem Push.</p><p class="tuda-measure seite-text">Die installierte Datei baut GitHub aus genau dem Quellcode, der im Repo liegt.</p></section><section class="tuda-section seite-abschnitt" aria-labelledby="ab-5"><div class="tuda-section__head"><div class="tuda-section__heading"><span class="tuda-numeral tuda-section__index" aria-hidden="true">05</span><h2 class="tuda-section__title" id="ab-5">Gut zu wissen</h2></div></div><ul class="tuda-list tuda-list--card tuda-list--divided"><li class="tuda-list__item"><span class="tuda-list__lead tuda-list__lead--brand"><svg data-icon="info"></svg></span><span class="tuda-list__content"><span class="tuda-list__title">Ohne Gewähr</span><span class="tuda-list__meta">Die Zahlen kommen aus TUCaN; verbindlich bleibt TUCaN selbst</span></span></li><li class="tuda-list__item"><span class="tuda-list__lead tuda-list__lead--brand"><svg data-icon="refresh"></svg></span><span class="tuda-list__content"><span class="tuda-list__title">Rückweg zu TUCaN</span><span class="tuda-list__meta">Fällt etwas aus, führt ein Knopf im Dialog zur gewohnten Ansicht</span></span></li><li class="tuda-list__item"><span class="tuda-list__lead tuda-list__lead--brand"><svg data-icon="help"></svg></span><span class="tuda-list__content"><span class="tuda-list__title">Getestet mit Tampermonkey</span><span class="tuda-list__meta">Andere Userscript-Erweiterungen können funktionieren, sind aber nicht geprüft</span></span></li></ul></section>
+</main>
+<footer class="seite-fuss">
+<span class="seite-lockup"><svg class="tuda-sign" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><rect class="tuda-sign__tile" width="48" height="48" rx="10"/><path class="tuda-sign__mark" d="M7 38V26A3 3 0 0 1 13 26V38H12V26A2 2 0 0 0 8 26V38ZM9 38V26A1 1 0 0 1 11 26V38ZM14 38V19A3 3 0 0 1 20 19V38H19V19A2 2 0 0 0 15 19V38ZM16 38V19A1 1 0 0 1 18 19V38ZM21 38V12A3 3 0 0 1 27 12V38H26V12A2 2 0 0 0 22 12V38ZM23 38V12A1 1 0 0 1 25 12V38ZM28 38V19A3 3 0 0 1 34 19V38H33V19A2 2 0 0 0 29 19V38ZM30 38V19A1 1 0 0 1 32 19V38ZM35 38V26A3 3 0 0 1 41 26V38H40V26A2 2 0 0 0 36 26V38ZM37 38V26A1 1 0 0 1 39 26V38Z"/><path class="tuda-sign__small" d="M10.5 24H13.5V42H10.5ZM16.5 15H19.5V42H16.5ZM22.5 6H25.5V42H22.5ZM28.5 15H31.5V42H28.5ZM34.5 24H37.5V42H34.5Z"/></svg><span><b>TUCaN-Notenspiegel</b>by Mario Jovanovic</span></span>
+<span>Inoffiziell, kein Angebot der TU Darmstadt · <a class="tuda-link" href="https://github.com/MarioJovc/tucan-notenspiegel">Quellcode auf GitHub</a></span>
+</footer>
+<script>document.addEventListener('DOMContentLoaded',function(){if(window.TUDa){TUDa.init(document.body);}});</script>
+</body>
+</html>

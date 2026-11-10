@@ -1,0 +1,37 @@
+name: Fehler melden
+description: Das Ø reagiert nicht, der Dialog zeigt einen Fehler oder etwas wird falsch dargestellt
+labels: ["Fehler"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Danke fürs Melden. Bitte lade keine gespeicherten TUCaN-Seiten und keine Screenshots mit deinen Noten hoch. Hilfreich ist die Startmeldung des Skripts: In der Browser-Konsole (F12) steht nach dem Laden eine Zeile „[TUCaN Skin] …“.
+  - type: dropdown
+    id: seite
+    attributes:
+      label: Auf welcher Seite?
+      options:
+        - Modulergebnisse
+        - Prüfungsergebnisse
+        - Demo auf der Projektseite
+    validations:
+      required: true
+  - type: input
+    id: umgebung
+    attributes:
+      label: Browser, Erweiterung und Version des Skripts
+      placeholder: z. B. Chrome 142, Tampermonkey 5.4, TUCaN-Notenspiegel 0.5.1
+    validations:
+      required: true
+  - type: textarea
+    id: was
+    attributes:
+      label: Was ist passiert?
+      description: Was hast du gemacht, was ist passiert, was hättest du erwartet?
+    validations:
+      required: true
+  - type: textarea
+    id: konsole
+    attributes:
+      label: Startmeldung oder Fehlermeldung aus der Konsole
+      render: text

@@ -59,11 +59,16 @@ async function runPage(page, bundle, notenspiegelHtml) {
     /^javascript:open_/.test(a.getAttribute('href') || ''));
   add(rewritten, 'TUCaNs Inline-Skripte liefen nicht — Live-Zustand nicht hergestellt');
 
-  // Netzwerk und Popups im iframe abfangen.
+  // Netzwerk und Popups im iframe abfangen. Jede Anfrage wird mitgeschrieben:
+  // Das Skript darf nur den Notenspiegel von TUCaN selbst abrufen.
   const popups = [];
-  win.fetch = async () => new Response(notenspiegelHtml, {
-    status: 200, headers: { 'content-type': 'text/html; charset=utf-8' },
-  });
+  const fetches = [];
+  win.fetch = async (input) => {
+    fetches.push(String(input?.url ?? input));
+    return new Response(notenspiegelHtml, {
+      status: 200, headers: { 'content-type': 'text/html; charset=utf-8' },
+    });
+  };
   win.open = (...args) => { popups.push(args[0]); return null; };
 
   const logs = [];
@@ -116,6 +121,11 @@ async function runPage(page, bundle, notenspiegelHtml) {
     host?.remove();
   }
   add(popups.length === 0, popups.length + ' Original-Popup(s) geöffnet');
+  add(fetches.length === clicked, `${fetches.length} Abrufe bei ${clicked} Klicks`);
+  for (const url of fetches) {
+    add(/^\/scripts\/mgrqispi\.dll\?APPNAME=CampusNet&PRGNAME=GRADEOVERVIEW&/.test(url),
+        'Abruf außerhalb des TUCaN-Notenspiegels: ' + url);
+  }
 
   frame.remove();
   return { name: page.file, clicked, problems };

@@ -1,0 +1,73 @@
+name: Pages
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  bauen:
+    name: Userscript bauen
+    # Auf Windows, damit build.ps1 genau so läuft wie auf dem eigenen Rechner.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: build.ps1 ausführen
+        run: powershell -ExecutionPolicy Bypass -File build.ps1
+      - uses: actions/upload-artifact@v7
+        with:
+          name: userscript
+          path: dist/tucan-skin.user.js
+          if-no-files-found: error
+
+  testen:
+    name: Tests
+    needs: bauen
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: userscript
+          path: dist
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Playwright installieren
+        run: |
+          npm install --no-save playwright@1.63.0
+          npx playwright install --with-deps chromium
+      - name: Renderer- und Live-Tests, keine Anfragen nach außen
+        run: node tests/ausfuehren.mjs
+      - name: Projektseite, Demo und Userscript zusammenstellen
+        if: github.event_name != 'pull_request'
+        run: |
+          mkdir -p _site
+          cp -r docs/. _site/
+          cp -r demo src vendor fixtures _site/
+          cp dist/tucan-skin.user.js _site/tucan-notenspiegel.user.js
+          sed -n '1,/==\/UserScript==/p' userscript/header.txt > _site/tucan-notenspiegel.meta.js
+          grep -q '@version' _site/tucan-notenspiegel.meta.js
+      - uses: actions/upload-pages-artifact@v5
+        if: github.event_name != 'pull_request'
+        with:
+          path: _site
+
+  veroeffentlichen:
+    name: Veröffentlichen
+    if: github.event_name != 'pull_request'
+    needs: testen
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
