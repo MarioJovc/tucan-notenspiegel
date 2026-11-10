@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>TUCaN Skin — Renderer-Tests</title>
+<style>
+  body { margin:0; padding:24px; background:#f2f2f5; color:#111113;
+         font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size:13px; }
+  #stage { position:absolute; left:-99999px; top:0; width:760px; }
+  table { border-collapse:collapse; margin-top:14px; }
+  th,td { padding:5px 10px; border-bottom:1px solid #ddd; text-align:left; font-size:12px; vertical-align:top; }
+  th { color:#666; font-weight:500; }
+  .ok { color:#00715e; } .fail { color:#b90f22; font-weight:600; }
+  #summary { font-size:15px; font-weight:600; margin-top:16px; }
+</style>
+</head>
+<body>
+<h1 style="font-size:16px;margin:0">Renderer-Tests</h1>
+<div id="out">läuft…</div>
+<div id="stage"></div>
+
+<script>
+const GRADES = ['1,0','1,3','1,7','2,0','2,3','2,7','3,0','3,3','3,7','4,0','5,0'];
+
+/** Baut ein Datenobjekt in der Form, die parseNotenspiegel() liefert. */
+function makeData(name, counts, metaOverrides = {}) {
+  const distribution = GRADES.map((label, i) => ({
+    label, grade: Number(label.replace(',', '.')), count: counts[i],
+  }));
+  const stats = computeStats(distribution);
+  return {
+    name,
+    data: {
+      exam: { code: '00-00-0000', title: name, semester: 'SoSe 2026', raw: '' },
+      distribution,
+      meta: {
+        average: null, resultsTotal: stats.graded, deviatingBws: 0,
+        absentSick: 2, absentUnexcused: 3, ...metaOverrides,
+      },
+      stats,
+    },
+  };
+}
+
+// Erst nach dem Laden der Quellen aufrufen: makeData braucht computeStats.
+const buildCases = () => [
+  { ...makeData('Normalfall (glockenförmig)', [12,21,30,38,44,41,36,27,19,15,52]), own: 1.7 },
+  { ...makeData('Extremfall: 8 Leerstufen', [0,0,0,0,0,0,0,0,10,12,456]), own: 5.0 },
+  { ...makeData('Alles in einer Stufe', [0,0,0,300,0,0,0,0,0,0,0]), own: 2.0 },
+  { ...makeData('Niemand durchgefallen', [10,20,30,40,50,40,30,20,10,5,0]), own: 2.3 },
+  { ...makeData('Alle durchgefallen', [0,0,0,0,0,0,0,0,0,0,200]), own: 5.0 },
+  { ...makeData('Ein einziges Ergebnis', [1,0,0,0,0,0,0,0,0,0,0]), own: 1.0 },
+  { ...makeData('Gleichverteilt', [40,40,40,40,40,40,40,40,40,40,40]), own: 3.0 },
+  { ...makeData('Zweigipflig', [50,10,2,1,0,1,2,10,50,5,60]), own: 2.3 },
+  { ...makeData('Monoton steigend', [1,2,3,4,5,6,7,8,9,10,11]), own: 4.0 },
+  { ...makeData('Monoton fallend', [11,10,9,8,7,6,5,4,3,2,1]), own: 1.0 },
+  { ...makeData('Sägezahn', [60,1,60,1,60,1,60,1,60,1,60]), own: 2.7 },
+  { ...makeData('Gar keine Ergebnisse', [0,0,0,0,0,0,0,0,0,0,0]), own: 2.0 },
+  { ...makeData('Eigene Note in Leerstufe', [30,0,40,0,50,0,60,0,0,0,20]), own: 1.3 },
+  { ...makeData('Ohne eigene Note', [12,21,30,38,44,41,36,27,19,15,52]), own: null },
+];
+let CASES = [];
+
+/** Kurven-y an einer x-Position (Prozent der Plotbreite) abtasten. */
+function sampleCurve(samples, xPct) {
+  let best = samples[0], bd = Infinity;
+  for (const p of samples) {
+    const d = Math.abs(p.x - xPct);
+    if (d < bd) { bd = d; best = p; }
+  }
+  return best;
+}
+
+/** Blatt im Shadow DOM einhängen, ohne Bewegung (Messungen am Endzustand). */
+function mount(data, ownGrade) {
+  const stage = document.getElementById('stage');
+  const host = document.createElement('div');
+  stage.appendChild(host);
+  const node = mountNotenspiegel(host, data, { ownGrade, animate: false });
+  return { host, node, app: host.shadowRoot.querySelector('.tsk-app') };
+}
+
+// Verläufe und Schatten gehören dazu: Balken und Siegel tragen ihre Farbe dort,
+// nicht in background-color.
+const look = (el) => {
+  const s = getComputedStyle(el);
+  return [s.backgroundColor, s.backgroundImage, s.boxShadow, s.color, s.fontWeight, s.fontSize].join('|');
+};
+
+function runCase(c) {
+  document.getElementById('stage').innerHTML = '';
+  const { node, app } = mount(c.data, c.own);
+  const problems = [];
+  const add = (cond, msg) => { if (!cond) problems.push(msg); };
+
+  // --- A: keine kaputten Zahlen ---------------------------------------------
+  add(!/NaN|undefined|Infinity/.test(node.innerText), 'NaN/undefined/Infinity im Text');
+
+  // --- T: Tokens des Systems greifen im Shadow DOM --------------------------
+  // Erst ausdrücklich hell: Im Modus „System" hinge das Ergebnis sonst am Testrechner.
+  app.setAttribute('data-theme', 'light');
+  const card = node.querySelector('.tsk-dist');
+  add(getComputedStyle(card).backgroundColor === 'rgb(255, 255, 255)', 'Karte nicht surface (hell)');
+  add(/gradient/.test(getComputedStyle(node.closest('.tsk-sheet')).backgroundImage), 'Blatt ohne getöntes Glas');
+  app.setAttribute('data-theme', 'dark');
+  add(getComputedStyle(card).backgroundColor === 'rgb(28, 28, 30)', 'Dunkelmodus greift nicht (surface)');
+  add(getComputedStyle(node.querySelector('.tuda-modal__title')).color === 'rgb(245, 245, 247)',
+      'Dunkelmodus erreicht die Schrift nicht');
+  app.setAttribute('data-theme', 'light');
+  const bars = [...node.querySelectorAll('.tuda-chart__bar')];
+  const plain = bars.find((b) => !b.matches('.is-current, .is-error, .is-empty'));
+  if (plain) add(/gradient/.test(getComputedStyle(plain).backgroundImage), 'Balken nicht als getöntes Glas');
+  const current = node.querySelector('.tuda-chart__bar.is-current:not(.is-error)');
+  if (current) add(getComputedStyle(current).backgroundColor === 'rgb(0, 90, 169)', 'Eigener Balken nicht chart-emphasis');
+  if (current && plain) add(getComputedStyle(current).backgroundColor !== getComputedStyle(plain).backgroundColor, 'Eigener Balken nicht hervorgehoben');
+  // Ohne Ergebnisse gibt es keine Einordnung (rank() liefert null) und damit
+  // nichts hervorzuheben und nichts zu verbergen.
+  const ranked = c.own != null && rank(c.data.distribution, c.own) != null;
+  if (ranked) add(node.querySelectorAll('.is-current').length > 0, 'Eigene Note nirgends hervorgehoben');
+  else add(!node.querySelector('.is-current, .tsk-result, .tsk-ns__note'), 'Hervorhebung ohne Einordnung');
+
+  const plot = node.querySelector('.tuda-chart__plot').getBoundingClientRect();
+  const n = bars.length;
+
+  // --- H: Balkenmitten exakt bei (i + 0,5) / n (Kurve und Schnitt rechnen so)
+  bars.forEach((bar, i) => {
+    const b = bar.getBoundingClientRect();
+    const expected = plot.left + (i + 0.5) / n * plot.width;
+    add(Math.abs(b.left + b.width / 2 - expected) < 0.75, `Balken ${GRADES[i]} nicht mittig in seiner Spalte`);
+  });
+
+  // Die Linie der Linienansicht: geht durch die Balkenspitzen, geprüft werden
+  // Rahmen und Monotonie (B, F); C, D, E galten der Zierfläche über den Balken.
+  const path = node.querySelector('.ns-line__path');
+  const decor = false;
+  if (path) {
+    const len = path.getTotalLength();
+    const S = [];
+    for (let i = 0; i <= 1200; i++) S.push(path.getPointAtLength(len * i / 1200));
+
+    // --- B: Kurve im Rahmen -------------------------------------------------
+    const ys = path.getAttribute('d').match(/-?\d+\.?\d*/g).map(Number).filter((_, i) => i % 2 === 1);
+    add(Math.min(...ys) >= -0.01 && Math.max(...ys) <= 100.01,
+        `Kurve außerhalb [0,100]: ${Math.min(...ys).toFixed(1)}…${Math.max(...ys).toFixed(1)}`);
+
+    const centers = bars.map((_, i) => (i + 0.5) / n * 100);
+
+    // --- C: Kurve über jeder Balkenkappe -------------------------------------
+    if (decor) bars.forEach((bar, i) => {
+      const b = bar.getBoundingClientRect();
+      const y = plot.top + sampleCurve(S, centers[i]).y / 100 * plot.height;
+      add(b.top - y > 0, `Kurve nicht über Balken ${GRADES[i]} (${Math.round(b.top - y)}px)`);
+    });
+
+    // --- D: Kurve schneidet kein Wertlabel -----------------------------------
+    if (decor) node.querySelectorAll('.tuda-chart__value').forEach((label, i) => {
+      const v = label.getBoundingClientRect();
+      const x1 = (v.left - plot.left) / plot.width * 100;
+      const x2 = (v.right - plot.left) / plot.width * 100;
+      const hit = S.some((p) => {
+        if (p.x < x1 || p.x > x2) return false;
+        const y = plot.top + p.y / 100 * plot.height;
+        return y >= v.top - 1 && y <= v.bottom + 1;
+      });
+      add(!hit, `Kurve schneidet Wertlabel ${GRADES[i]}`);
+    });
+
+    // --- F: Monotonie — kein Extremum, das die Daten nicht hergeben ----------
+    const counts = c.data.distribution.map((b) => b.count);
+    for (let i = 0; i < counts.length - 1; i++) {
+      const yA = sampleCurve(S, centers[i]).y;
+      const yB = sampleCurve(S, centers[i + 1]).y;
+      const dCount = counts[i + 1] - counts[i];
+      const dY = yB - yA; // y wächst nach unten
+      if (dCount === 0) {
+        add(Math.abs(dY) < 0.6, `Kurve nicht flach zwischen ${GRADES[i]} und ${GRADES[i+1]} (Δy ${dY.toFixed(2)})`);
+      } else {
+        add(Math.sign(dY) === -Math.sign(dCount) || Math.abs(dY) < 0.05,
+            `Kurve läuft gegen die Werte zwischen ${GRADES[i]} und ${GRADES[i+1]}`);
+      }
+      const between = S.filter((p) => p.x > centers[i] && p.x < centers[i + 1]).map((p) => p.y);
+      if (between.length) {
+        const lo = Math.min(yA, yB) - 0.4, hi = Math.max(yA, yB) + 0.4;
+        add(Math.min(...between) >= lo && Math.max(...between) <= hi,
+            `Überschwinger zwischen ${GRADES[i]} und ${GRADES[i+1]}`);
+      }
+    }
+
+    // --- E: Schnitt-Kapsel im Plot und frei von der Kurve ---------------------
+    const pill = node.querySelector('.tuda-chart__mean > span');
+    if (pill && decor) {
+      const rl = pill.getBoundingClientRect();
+      add(rl.left >= plot.left - 0.5 && rl.right <= plot.right + 0.5, 'Schnitt-Kapsel ragt aus dem Plot');
+      const cuts = S.some((p) => {
+        const x = plot.left + p.x / 100 * plot.width;
+        const y = plot.top + p.y / 100 * plot.height;
+        return x >= rl.left && x <= rl.right && y >= rl.top && y <= rl.bottom;
+      });
+      add(!cuts, 'Schnitt-Kapsel schneidet die Kurve');
+    }
+  }
+
+  // --- G: Wertlabels im Satzspiegel der Karte ----------------------------------
+  const cs = getComputedStyle(card);
+  const cb = card.getBoundingClientRect();
+  const cL = cb.left + parseFloat(cs.paddingLeft), cR = cb.right - parseFloat(cs.paddingRight);
+  node.querySelectorAll('.tuda-chart__value').forEach((v, i) => {
+    const b = v.getBoundingClientRect();
+    add(b.left >= cL - 0.5 && b.right <= cR + 0.5, `Wertlabel ${GRADES[i]} außerhalb des Satzspiegels`);
+  });
+
+  // --- I: Anteilsbalken ---------------------------------------------------------
+  node.querySelectorAll('.tuda-ratio__seg').forEach((s) => {
+    const inner = s.firstElementChild;
+    if (inner && getComputedStyle(inner).display !== 'none') {
+      add(inner.scrollWidth <= s.clientWidth, 'Prozentwert läuft aus dem Segment');
+    }
+  });
+  const ratio = node.querySelector('.tuda-ratio');
+  if (ratio && !ratio.classList.contains('tuda-ratio--compact')) {
+    const [a, b] = ratio.querySelectorAll('.tuda-ratio__label');
+    add(b.getBoundingClientRect().left - a.getBoundingClientRect().right >= 12, 'Bezeichnungen im Anteilsbalken berühren sich');
+  }
+  add(!node.querySelector('.tuda-chart--animate, .tuda-ratio--animate, .tuda-badge--draw'), 'Bewegung trotz animate: false');
+
+  // --- V: „Note verbergen" sieht aus wie ein Notenspiegel ohne eigene Note -------
+  // Strenger als ein Spaltenvergleich: Jede Zelle, jeder Balken und jede
+  // Achsenbeschriftung muss genauso aussehen wie in einer Darstellung, die die
+  // eigene Note nie gekannt hat. Eine eigene 5,0 bleibt dabei so rot wie jede 5,0.
+  if (ranked) {
+    const sw = node.querySelector('.tsk-ns__note input[value="hide"]');
+    const swShow = node.querySelector('.tsk-ns__note input[value="show"]');
+    add(!!sw, 'Schalter „Note verbergen" fehlt');
+    if (sw) {
+      sw.checked = true;
+      sw.dispatchEvent(new Event('change', { bubbles: true }));
+      // Die Achsenkapsel blendet über (Farbe); verglichen wird der Endzustand.
+      node.getRootNode().getAnimations().forEach((a) => a.finish());
+      const result = node.querySelector('.tsk-result');
+      add(!result || getComputedStyle(result).display === 'none', 'Ergebniskarte im Verbergen-Modus sichtbar');
+      add(!node.querySelector('.is-current'), 'Hervorhebung im Verbergen-Modus übrig');
+      const ownBar = node.querySelector('.tuda-chart__bar[data-label-own]');
+      add(!ownBar || !/deine Note/.test(ownBar.getAttribute('aria-label')), 'aria-label verrät die eigene Note');
+
+      const ref = mount(c.data, null).node;
+      const sel = '.tuda-chart__bar, .tuda-chart__value, .tuda-chart__axis span, .tsk-ns__table th, .tsk-ns__table td';
+      const a = [...node.querySelectorAll(sel)], b = [...ref.querySelectorAll(sel)];
+      add(a.length === b.length, 'Verbergen-Vergleich: ungleiche Elementzahl');
+      const diff = a.findIndex((x, i) => b[i] && look(x) !== look(b[i]));
+      add(diff === -1, 'Eigene Note im Verbergen-Modus erkennbar' + (diff >= 0 ? ` (${a[diff].className || a[diff].tagName} ${a[diff].textContent})` : ''));
+
+      swShow.checked = true;
+      swShow.dispatchEvent(new Event('change', { bubbles: true }));
+      add(node.querySelectorAll('.is-current').length > 0, 'Hervorhebung kommt nach dem Zurückschalten nicht wieder');
+    }
+  }
+
+  return problems;
+}
+
+(async function () {
+  const nocache = () => '?v=' + Date.now();
+  const vendor = '../vendor/tuda-ui/';
+  const [tokens, bundle] = await Promise.all(
+    ['tuda-tokens.css', 'bundle.css'].map((f) => fetch(vendor + f + nocache(), { cache: 'no-store' }).then((r) => r.text()))
+  );
+  window.TSK_VENDOR = {
+    css: tokens + '\n' + bundle,
+    fonts: { archivo: vendor + 'fonts/Archivo-Variable-Latin.woff2', mono: vendor + 'fonts/JetBrainsMono-Variable-Latin.woff2' },
+  };
+  for (const src of ['../src/notenspiegel.js', '../src/tuda.js', '../src/render.js']) {
+    const code = await fetch(src + nocache(), { cache: 'no-store' }).then((r) => r.text());
+    (0, eval)(code);
+  }
+  // Messungen mit den echten Schriften, nicht mit dem Fallback.
+  try { localStorage.removeItem('tuda-theme'); } catch (e) {}
+  tskEnsureFonts(document);
+  await document.fonts.load('600 16px Archivo');
+
+  CASES = buildCases();
+  const rows = [];
+  let failed = 0;
+  for (const c of CASES) {
+    let problems;
+    try { problems = runCase(c); }
+    catch (err) { problems = ['Ausnahme: ' + err.message]; }
+    if (problems.length) failed++;
+    rows.push({ name: c.name, problems });
+  }
+
+  const out = document.getElementById('out');
+  out.innerHTML =
+    `<div id="summary" class="${failed ? 'fail' : 'ok'}">` +
+    `${CASES.length - failed} von ${CASES.length} Fällen bestanden</div>` +
+    '<table><tr><th>Fall</th><th>Ergebnis</th></tr>' +
+    rows.map((r) => `<tr><td>${r.name}</td><td class="${r.problems.length ? 'fail' : 'ok'}">` +
+      (r.problems.length ? r.problems.join('<br>') : 'bestanden') + '</td></tr>').join('') +
+    '</table>';
+  window.__testResult = { total: CASES.length, failed, rows };
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+# Zeilenenden im Repo einheitlich (LF); Git für Windows checkt sie als CRLF aus
+* text=auto
+
+*.html text diff=html
+*.css text diff=css
+*.js text
+*.mjs text
+*.md text diff=markdown
+*.svg text
+
+*.png binary
+*.woff2 binary

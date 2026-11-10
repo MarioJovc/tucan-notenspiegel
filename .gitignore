@@ -1,0 +1,32 @@
+# Betriebssystem
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editoren und IDEs
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+.vs/
+.fleet/
+.cursor/
+*.swp
+
+# Gebautes Userscript (entsteht mit build.ps1, der Workflow baut es selbst)
+dist/
+
+# Werkzeuge für die Tests
+node_modules/
+package-lock.json
+
+# Lokaler Nachbau der Pages-Seite
+_site/
+
+# Logs
+*.log
+
+# Geheimnisse und lokale Konfiguration
+.env
+.env.*
+!.env.example

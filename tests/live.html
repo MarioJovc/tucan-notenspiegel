@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>TUCaN Skin — Live-Tests</title>
+<style>
+  body { margin:0; padding:24px; background:#f2f2ef; color:#0b0b0b;
+         font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size:13px; }
+  iframe { position:absolute; left:-99999px; width:1000px; height:900px; }
+  table { border-collapse:collapse; margin-top:14px; }
+  th,td { padding:5px 10px; border-bottom:1px solid #ddd; text-align:left; font-size:12px; vertical-align:top; }
+  th { color:#666; font-weight:500; }
+  .ok { color:#0a7a0a; } .fail { color:#c02626; font-weight:600; }
+  #summary { font-size:15px; font-weight:600; margin-top:16px; }
+</style>
+</head>
+<body>
+<h1 style="font-size:16px;margin:0">Live-Tests: Userscript auf den Ergebnisseiten</h1>
+<p style="color:#666;max-width:70ch">
+  Warum es diese Seite gibt: TUCaN schreibt beim Laden per Inline-Skript die
+  Ø-Links um (href → <code>javascript:…</code>, auf den Prüfungsergebnissen
+  zusätzlich den title). In einem per DOMParser geladenen Fixture laufen
+  diese Skripte nicht — Fehler, die nur im Live-Zustand auftreten, blieben
+  dort unsichtbar. Hier werden die Fixtures in einem iframe geladen, sodass
+  der Browser die Skripte wirklich ausführt, und jeder Ø-Link wird geklickt.
+  <br><strong>Nur über einen Webserver öffnen</strong> (siehe README) — unter
+  <code>file://</code> sperrt der Browser den Zugriff auf das iframe.
+</p>
+<div id="out">läuft…</div>
+
+<script>
+const PAGES = [
+  { file: 'beispiel-modulergebnisse.html', kind: 'modul' },
+  { file: 'beispiel-pruefungsergebnisse.html', kind: 'pruefung' },
+];
+
+function loadFrame(src) {
+  return new Promise((resolve, reject) => {
+    const frame = document.createElement('iframe');
+    frame.onload = () => resolve(frame);
+    frame.onerror = reject;
+    frame.src = src;
+    document.body.appendChild(frame);
+  });
+}
+
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function runPage(page, bundle, notenspiegelHtml) {
+  const frame = await loadFrame('../fixtures/' + page.file + '?v=' + Date.now());
+  const win = frame.contentWindow;
+  const doc = frame.contentDocument;
+  const problems = [];
+  const add = (cond, msg) => { if (!cond) problems.push(msg); };
+
+  // Voraussetzung prüfen: Sind TUCaNs Skripte gelaufen? Sonst testet diese
+  // Seite dasselbe wie die Fixture-Tests und ist wertlos.
+  const rewritten = [...doc.querySelectorAll('a')].some((a) =>
+    /^javascript:open_/.test(a.getAttribute('href') || ''));
+  add(rewritten, 'TUCaNs Inline-Skripte liefen nicht — Live-Zustand nicht hergestellt');
+
+  // Netzwerk und Popups im iframe abfangen.
+  const popups = [];
+  win.fetch = async () => new Response(notenspiegelHtml, {
+    status: 200, headers: { 'content-type': 'text/html; charset=utf-8' },
+  });
+  win.open = (...args) => { popups.push(args[0]); return null; };
+
+  const logs = [];
+  const origInfo = win.console.info;
+  win.console.info = (...a) => { logs.push(String(a[0])); };
+  win.eval(bundle);
+  win.console.info = origInfo;
+
+  // Erwartete Zeilen direkt aus dem Live-DOM: jede Zeile mit GRADEOVERVIEW-Skript.
+  const rows = [...doc.querySelectorAll('tr')].filter((tr) =>
+    [...tr.querySelectorAll('script')].some((s) => /PRGNAME=GRADEOVERVIEW/.test(s.textContent)));
+  add(rows.length > 0, 'keine Zeilen mit Notenspiegel-Skript gefunden');
+  add(logs.some((l) => l.includes(rows.length + ' von ' + rows.length)),
+      'Konsole meldet nicht alle Links übernommen: ' + (logs[0] || '(keine Meldung)'));
+
+  let clicked = 0;
+  for (const tr of rows) {
+    const anchor = [...tr.querySelectorAll('a')].find((a) =>
+      /^javascript:open_(popup|overview)/.test(a.getAttribute('href') || '') ||
+      a.dataset.tskBound);
+    if (!anchor) { add(false, 'Zeile ohne klickbaren Ø-Link'); continue; }
+
+    const notCancelled = anchor.dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true }));
+    await wait(200);
+    clicked++;
+
+    add(!notCancelled, 'Klick nicht abgefangen (Standardaktion lief)');
+    const host = doc.querySelector('[data-tucan-skin]');
+    const shadow = host?.shadowRoot;
+    add(!!shadow, 'Notenspiegel nicht im Shadow DOM');
+    const dialog = shadow?.querySelector('dialog.tuda-modal');
+    add(!!dialog && dialog.open, 'kein offener Dialog nach Klick');
+    add(!!shadow?.querySelector('.tuda-chart--distribution'), 'kein Verteilungsdiagramm im Dialog');
+    add(!shadow?.querySelector('.tuda-alert--error'), 'Fehlermeldung statt Notenspiegel: ' +
+        (shadow?.querySelector('.tuda-alert__text')?.textContent || ''));
+    add(!!doc.getElementById('tsk-fonts'), 'Schriften nicht am Dokument angemeldet');
+
+    // Die Note in der Ergebniskarte muss die Note DIESER Zeile sein —
+    // Modulnote auf den Modulergebnissen, Prüfungsnote auf den Prüfungsergebnissen.
+    const gradeCellText = [...tr.cells].map((c) => c.textContent.trim())
+      .find((t) => /^\d,\d$|^b$/.test(t));
+    const shown = shadow?.querySelector('.tsk-result .tuda-result__number')?.textContent?.trim() || '';
+    if (gradeCellText && /^\d,\d$/.test(gradeCellText)) {
+      add(shown === gradeCellText, `falsche Note: Zeile ${gradeCellText}, Widget "${shown}"`);
+    } else {
+      // Unbenotete Leistung ("b"): keine eigene Note, keine Ergebniskarte.
+      add(!shadow?.querySelector('.tsk-result'), 'unbenotete Zeile zeigt trotzdem eine eigene Note');
+    }
+    dialog?.close();
+    host?.remove();
+  }
+  add(popups.length === 0, popups.length + ' Original-Popup(s) geöffnet');
+
+  frame.remove();
+  return { name: page.file, clicked, problems };
+}
+
+(async function () {
+  const bundle = await fetch('../dist/tucan-skin.user.js?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.text());
+  const ns = await fetch('../fixtures/beispiel-notenspiegel.html').then((r) => r.text());
+
+  const results = [];
+  for (const page of PAGES) {
+    try { results.push(await runPage(page, bundle, ns)); }
+    catch (err) { results.push({ name: page.file, clicked: 0, problems: ['Ausnahme: ' + err.message] }); }
+  }
+  const failed = results.filter((r) => r.problems.length).length;
+  document.getElementById('out').innerHTML =
+    `<div id="summary" class="${failed ? 'fail' : 'ok'}">${results.length - failed} von ${results.length} Seiten bestanden</div>` +
+    '<table><tr><th>Seite</th><th>Ø-Links geklickt</th><th>Ergebnis</th></tr>' +
+    results.map((r) => `<tr><td>${r.name}</td><td>${r.clicked}</td><td class="${r.problems.length ? 'fail' : 'ok'}">` +
+      (r.problems.length ? r.problems.join('<br>') : 'bestanden') + '</td></tr>').join('') + '</table>';
+  window.__liveResult = { failed, results };
+})();
+</script>
+</body>
+</html>

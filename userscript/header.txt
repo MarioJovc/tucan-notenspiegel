@@ -1,0 +1,24 @@
+// ==UserScript==
+// @name         TUCaN-Notenspiegel
+// @namespace    https://github.com/MarioJovc/tucan-notenspiegel
+// @version      0.5.1
+// @description  Zeigt den TUCaN-Notenspiegel als Diagramm statt als Zahlentabelle — mit eigener Note, Kohortenschnitt und Bestehensquote, gestaltet mit TUDa UI.
+// @author       Mario Jovanovic
+// @license      MIT
+// @homepageURL  https://mariojovc.github.io/tucan-notenspiegel/
+// @supportURL   https://github.com/MarioJovc/tucan-notenspiegel/issues
+// @updateURL    https://mariojovc.github.io/tucan-notenspiegel/tucan-notenspiegel.meta.js
+// @downloadURL  https://mariojovc.github.io/tucan-notenspiegel/tucan-notenspiegel.user.js
+// @match        *://www.tucan.tu-darmstadt.de/*
+// @match        *://tucan.tu-darmstadt.de/*
+// @run-at       document-idle
+// @grant        none
+// ==/UserScript==
+
+// ACHTUNG: Diese Datei wird erzeugt. Nicht hier bearbeiten, sondern in
+// src/*.js bzw. userscript/glue.js — danach build.ps1 erneut ausführen.
+//
+// Gestaltung: Design System „TUDa UI" (vendor/tuda-ui), unverändert eingebettet.
+// Schriften: Archivo © The Archivo Project Authors und JetBrains Mono
+// © The JetBrains Mono Project Authors, beide unter der SIL Open Font License 1.1
+// (https://openfontlicense.org), als Latin-Teilmenge eingebettet.

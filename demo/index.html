@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TUCaN Skin — Notenspiegel</title>
+<style>
+  body {
+    margin: 0; padding: 32px 16px 64px;
+    background: #e5e5ea; color: #111113;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 820px; margin: 0 auto; }
+  .devbar {
+    display: flex; gap: 12px 16px; align-items: center; flex-wrap: wrap;
+    font-size: 12px; color: #5b5b60; margin-bottom: 20px;
+  }
+  select, button {
+    font: inherit; font-size: 12px; padding: 4px 10px;
+    border-radius: 999px; border: 0; background: rgba(118,118,128,.16); color: inherit;
+  }
+  button { cursor: pointer; font-weight: 600; }
+  #status { margin-left: auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="devbar">
+    <label>Fixture:
+      <select id="fixture">
+        <option value="beispiel-notenspiegel.html">Beispielklausur, WiSe 25/26 (erfunden)</option>
+        <option value="notenspiegel-extremfall.html">Extremfall (synthetisch)</option>
+      </select>
+    </label>
+    <label>Eigene Note:
+      <select id="grade"></select>
+    </label>
+    <button id="replay" type="button">Neu einblenden</button>
+    <button id="dialog" type="button">Als Dialog öffnen</button>
+    <span id="status"></span>
+  </div>
+  <div id="mount"></div>
+</div>
+
+<script>
+(async function () {
+  const status = document.getElementById('status');
+  const nocache = () => '?v=' + Date.now();
+
+  // Design System wie im Userscript: Tokens + Komponenten als ein CSS-String,
+  // Schriften hier als Datei-URL statt data:-URL.
+  const vendor = '../vendor/tuda-ui/';
+  const [tokens, bundle] = await Promise.all(
+    ['tuda-tokens.css', 'bundle.css'].map((f) => fetch(vendor + f + nocache(), { cache: 'no-store' }).then((r) => r.text()))
+  );
+  window.TSK_VENDOR = {
+    css: tokens + '\n' + bundle,
+    fonts: {
+      archivo: vendor + 'fonts/Archivo-Variable-Latin.woff2',
+      mono: vendor + 'fonts/JetBrainsMono-Variable-Latin.woff2',
+    },
+  };
+
+  // Cache-Busting: sonst liefert der Browser beim Iterieren die alte Datei aus.
+  for (const src of ['../src/notenspiegel.js', '../src/tuda.js', '../src/render.js']) {
+    const code = await fetch(src + nocache(), { cache: 'no-store' }).then((r) => r.text());
+    (0, eval)(code);
+  }
+
+  const fixtureSelect = document.getElementById('fixture');
+  const select = document.getElementById('grade');
+  let data = null;
+
+  // URL-Parameter für reproduzierbare Ansichten (Screenshots):
+  // ?theme=light|dark  ?fixture=<datei>  ?grade=1.7|none  ?anon=1  ?dialog=1
+  const params = new URLSearchParams(location.search);
+  if (params.get('theme')) { try { localStorage.setItem('tuda-theme', params.get('theme')); } catch (e) {} }
+  if (params.get('fixture')) fixtureSelect.value = params.get('fixture');
+
+  async function loadFixture() {
+    const html = await fetch('../fixtures/' + fixtureSelect.value + nocache(), { cache: 'no-store' }).then((r) => r.text());
+    data = parseNotenspiegel(new DOMParser().parseFromString(html, 'text/html'));
+    status.textContent =
+      `${data.distribution.length} Notenstufen, ${data.stats.graded} Ergebnisse, ` +
+      `${(data.stats.failRate * 100).toFixed(0)} % durchgefallen`;
+
+    // Notenauswahl neu aufbauen: die Stufen können je Fixture abweichen.
+    select.innerHTML = '<option value="">— keine —</option>';
+    for (const bin of data.distribution) {
+      const opt = document.createElement('option');
+      opt.value = String(bin.grade);
+      opt.textContent = bin.label + ` (${bin.count})`;
+      select.appendChild(opt);
+    }
+    // Erste Stufe mit Ergebnissen vorauswählen — im Extremfall gibt es keine 1,7.
+    const first = data.distribution.find((bin) => bin.count > 0);
+    select.value = first ? String(first.grade) : '';
+    const wanted = params.get('grade');
+    if (wanted) select.value = wanted === 'none' ? '' : String(Number(wanted));
+    draw();
+  }
+
+  const ownGrade = () => (select.value === '' ? null : Number(select.value));
+
+  function draw() {
+    const mount = document.getElementById('mount');
+    mount.innerHTML = '';
+    const host = document.createElement('div');
+    mount.appendChild(host);
+    const node = mountNotenspiegel(host, data, { ownGrade: ownGrade() });
+    const pick = (value) => {
+      const input = node.querySelector(`input[value="${value}"]`);
+      if (input) { input.checked = true; input.dispatchEvent(new Event('change', { bubbles: true })); }
+    };
+    if (params.get('anon') === '1') pick('hide');
+    if (params.get('mode') === 'line') pick('line');
+    if (params.get('settings') === '1') node.querySelector('.tsk-ns__settings button')?.click();
+  }
+
+  select.addEventListener('change', draw);
+  fixtureSelect.addEventListener('change', loadFixture);
+  document.getElementById('replay').addEventListener('click', draw);
+  document.getElementById('dialog').addEventListener('click', () => {
+    const sheet = tskOpenSheet(document);
+    sheet.setLoading();
+    // Kurz den Ladezustand zeigen, wie beim Abruf aus TUCaN.
+    setTimeout(() => sheet.setContent(renderNotenspiegel(data, { ownGrade: ownGrade(), onClose: sheet.dismiss })), 450);
+  });
+  await loadFixture();
+  if (params.get('dialog') === '1') document.getElementById('dialog').click();
+})();
+</script>
+</body>
+</html>
